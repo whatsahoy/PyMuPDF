@@ -10,11 +10,11 @@ if sys.platform.startswith('linux'):
                                      '/usr/local/include/mupdf',
                                      '/usr/local/thirdparty/zlib',
                                     ],
-                       #library_dirs=['<mupdf_and_3rd_party_libraries_dir>'],
+                       library_dirs=['/usr/lib/x86_64-linux-gnu'],
                        libraries=[
                            'mupdf',
-                           'crypto', #openssl is required by mupdf on archlinux
-                           'jpeg', 'freetype',
+                        #    'crypto', #openssl is required by mupdf on archlinux
+                        #    'jbig2dec', 'openjp2', 'jpeg', 'freetype',
                            'mupdfthird',
                            ], # the libraries to link with
                       )
