@@ -37,7 +37,7 @@
 // SWIG macro: throw exceptions.
 //=============================================================================
 %define THROWMSG(msg)
-fz_throw(gctx, FZ_ERROR_GENERIC, msg)
+fz_throw(gctx, FZ_ERROR_GENERIC, "%s",  msg)
 %enddef
 //=============================================================================
 
