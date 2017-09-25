@@ -14,7 +14,7 @@ if sys.platform.startswith('linux'):
                        libraries=[
                            'mupdf',
                            'crypto', #openssl is required by mupdf on archlinux
-                           'jbig2dec', 'openjp2', 'jpeg', 'freetype',
+                           'jpeg', 'freetype',
                            'mupdfthird',
                            ], # the libraries to link with
                       )
