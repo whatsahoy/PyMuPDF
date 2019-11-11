@@ -21,7 +21,6 @@ Change ENCODING as required.
 import fitz
 import sys
 
-ENCODING = "utf-8"
 assert len(sys.argv) == 2, "need filename as parameter"
 #==============================================================================
 # Main Program
@@ -34,8 +33,8 @@ pages = len(doc)
 
 fout = open(ofile,"w")
 
-for i in range(pages):
-    text = doc.getPageText(i)
-    fout.write(text.encode(ENCODING,"ignore"))
+for page in doc:
+    text = page.getText()
+    fout.write(text.encode("utf-8"))
 
 fout.close()

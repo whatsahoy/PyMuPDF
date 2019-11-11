@@ -1,49 +1,70 @@
 %{
-//----------------------------------------------------------------------------
-// portfolio schema types
-//----------------------------------------------------------------------------
-#define PDF_SCHEMA_NUMBER 0
-#define PDF_SCHEMA_SIZE 1
-#define PDF_SCHEMA_TEXT 2
-#define PDF_SCHEMA_DATE 3
-#define PDF_SCHEMA_DESC 4
-#define PDF_SCHEMA_MODDATE 5
-#define PDF_SCHEMA_CREATIONDATE 6
-#define PDF_SCHEMA_FILENAME 7
-#define PDF_SCHEMA_UNKNOWN 8
-
 //-----------------------------------------------------------------------------
-// finds index of an embedded file
-// Object "id" contains either entry name (str) or supposed index
-// pdf is the document in question
+// perform some cleaning if we have /EmbeddedFiles:
+// (1) remove any /Limits if /Names exists
+// (2) remove any empty /Collection
+// (3) set /PageMode/UseAttachments
 //-----------------------------------------------------------------------------
-int FindEmbedded(fz_context *ctx, PyObject *id, pdf_document *pdf)
+void JM_embedded_clean(fz_context *ctx, pdf_document *pdf)
 {
-    char *name = NULL;
-    Py_ssize_t name_len = 0;
-    char *tname= NULL;
-    int i = -1;
-    int count = pdf_count_portfolio_entries(ctx, pdf);
-    name = getPDFstr(ctx, id, &name_len, "id");
-    if (name == NULL)           // entry number provided
-    {
-        if (!PyInt_Check(id))
-            fz_throw(ctx, FZ_ERROR_GENERIC, "id must be string or number");
+    pdf_obj *root = pdf_dict_get(ctx, pdf_trailer(ctx, pdf), PDF_NAME(Root));
 
-        i = (int) PyInt_AsLong(id);
-        if ((i < 0) || (i >= count))
-            fz_throw(ctx, FZ_ERROR_GENERIC, "index out of range");
-    }
-    else                        // entry name provided
+    // remove any empty /Collection entry
+    pdf_obj *coll = pdf_dict_get(ctx, root, PDF_NAME(Collection));
+    if (coll && pdf_dict_len(ctx, coll) == 0)
+        pdf_dict_del(ctx, root, PDF_NAME(Collection));
+
+    pdf_obj *efiles = pdf_dict_getl(ctx, root,
+                                    PDF_NAME(Names),
+                                    PDF_NAME(EmbeddedFiles),
+                                    PDF_NAME(Names),
+                                    NULL);
+    if (efiles)  // make sure embedded files get displayed by viewers
     {
-        for (i = 0; i < count; i++)
-            {
-                tname = pdf_to_utf8(ctx, pdf_portfolio_entry_name(ctx, pdf, i));
-                if (strcmp(tname, name) == 0) break;
-            }
-        if (strcmp(tname, name) != 0)
-        fz_throw(ctx, FZ_ERROR_GENERIC, msg0008);
+        pdf_dict_put_name(ctx, root, PDF_NAME(PageMode), "UseAttachments");
     }
-    return i;
+    return;
+}
+
+//-----------------------------------------------------------------------------
+// embed a new file in a PDF (not only /EmbeddedFiles entries)
+//-----------------------------------------------------------------------------
+pdf_obj *JM_embed_file(fz_context *ctx,
+                       pdf_document *pdf,
+                       fz_buffer *buf,
+                       char *filename,
+                       char *ufilename,
+                       char *desc,
+                       int compress)
+{
+    size_t len = 0;
+    pdf_obj *ef, *f, *params, *val = NULL;
+    fz_var(val);
+    fz_try(ctx)
+    {
+        val = pdf_new_dict(ctx, pdf, 6);
+        pdf_dict_put_dict(ctx, val, PDF_NAME(CI), 4);
+        ef = pdf_dict_put_dict(ctx, val, PDF_NAME(EF), 4);
+        pdf_dict_put_text_string(ctx, val, PDF_NAME(F), filename);
+        pdf_dict_put_text_string(ctx, val, PDF_NAME(UF), ufilename);
+        pdf_dict_put_text_string(ctx, val, PDF_NAME(Desc), desc);
+        pdf_dict_put(ctx, val, PDF_NAME(Type), PDF_NAME(Filespec));
+        f = pdf_add_stream(ctx, pdf,
+                           fz_new_buffer_from_copied_data(ctx, "  ", 1),
+                           NULL, 0);
+        pdf_dict_put_drop(ctx, ef, PDF_NAME(F), f);
+        JM_update_stream(ctx, pdf, f, buf, compress);
+        len = fz_buffer_storage(ctx, buf, NULL);
+        pdf_dict_put_int(ctx, f, PDF_NAME(DL), len);
+        pdf_dict_put_int(ctx, f, PDF_NAME(Length), len);
+        params = pdf_dict_put_dict(ctx, f, PDF_NAME(Params), 4);
+        pdf_dict_put_int(ctx, params, PDF_NAME(Size), len);
+    }
+    fz_always(ctx)
+    {
+        ;
+    }
+    fz_catch(ctx) fz_rethrow(ctx);
+    return val;
 }
 %}
